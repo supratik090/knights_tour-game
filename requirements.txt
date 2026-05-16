@@ -1,0 +1,3 @@
+# This project currently uses only Python standard library modules.
+# tkinter ships with most Python desktop installs, so there are no
+# third-party pip dependencies required for app.py.

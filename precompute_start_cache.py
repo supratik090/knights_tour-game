@@ -9,6 +9,20 @@ from knights_tour.solver import (
 
 
 def main() -> None:
+    """
+    Build local cache entries for fresh starting squares on larger boards.
+
+    Strategy:
+    - iterate supported board sizes
+    - skip starts that are impossible by parity
+    - skip starts already represented by symmetry or existing cache entries
+    - try the fast greedy start solver first
+    - fall back to the exact solver only when necessary
+    - write every solved symmetry-equivalent start into the cache
+
+    This script is designed to improve local gameplay performance. It writes to
+    `.cache/` and does not need to be committed to git.
+    """
     print(f"Writing cache to: {CACHE_FILE}")
 
     for board_size in (5, 6, 7, 8, 9, 10):
@@ -59,6 +73,8 @@ def main() -> None:
 
                 solution = find_start_tour_fast(board_size, start)
                 if solution is None:
+                    # The exact solver is slower but complete, so it is reserved
+                    # for starts the greedy precompute path could not solve.
                     solution = find_solution_path(board_size, start, {start})
                 completed += 1
                 if solution is None:
@@ -68,7 +84,6 @@ def main() -> None:
                     continue
 
                 for transform_id in range(8):
-                    transformed_start = orbit[transform_id] if transform_id < len(orbit) else None
                     transformed_path = transform_path(solution, board_size, transform_id)
                     transformed_origin = transform_path([start], board_size, transform_id)[0]
                     cache_start_path(board_size, transformed_origin, transformed_path)

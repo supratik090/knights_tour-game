@@ -14,6 +14,13 @@ from .solver import (
 
 @dataclass
 class GameState:
+    """
+    In-memory domain model for the current game.
+
+    The UI talks to this class for move validation, history, suggestions, and
+    solvability checks. It contains no Tkinter code so the game rules stay
+    reusable and testable on their own.
+    """
     board_size: int = 5
     moves: List[Position] = field(default_factory=list)
     redo_stack: List[Position] = field(default_factory=list)
@@ -23,6 +30,7 @@ class GameState:
     solvable: Optional[bool] = None
 
     def reset(self, board_size: Optional[int] = None) -> None:
+        """Clear the current game and optionally switch to a new board size."""
         if board_size is not None:
             self.board_size = board_size
         self.moves = []
@@ -48,16 +56,19 @@ class GameState:
         return len(self.moves) == self.total_tiles
 
     def valid_moves(self) -> List[Position]:
+        """Return legal next moves from the current knight position."""
         if not self.current_move:
             return []
         return valid_moves_from(self.current_move, self.board_size, self.visited)
 
     def can_move_to(self, move: Position) -> bool:
+        """Return whether a requested move is currently legal."""
         if not self.moves:
             return True
         return move in set(self.valid_moves())
 
     def apply_move(self, move: Position, clear_redo: bool = True) -> None:
+        """Apply a move and invalidate cached analysis derived from the old path."""
         if clear_redo:
             self.redo_stack.clear()
         self.moves.append(move)
@@ -67,6 +78,7 @@ class GameState:
         self.solvable = None
 
     def undo(self) -> Optional[Position]:
+        """Undo one move and place it on the redo stack."""
         if not self.moves:
             return None
         last_move = self.moves.pop()
@@ -78,6 +90,7 @@ class GameState:
         return last_move
 
     def redo(self) -> Optional[Position]:
+        """Redo the most recently undone move if it is still valid."""
         if not self.redo_stack:
             return None
 
@@ -95,6 +108,7 @@ class GameState:
         return next_move
 
     def undo_many(self, steps: int) -> int:
+        """Undo up to `steps` moves and return how many were actually removed."""
         undone = 0
         while undone < steps and self.moves:
             last_move = self.moves.pop()
@@ -109,6 +123,7 @@ class GameState:
         return undone
 
     def set_replay_snapshot(self, moves: List[Position]) -> None:
+        """Replace state from a replay snapshot without treating it as new play."""
         self.moves = list(moves)
         self.visited = set(self.moves)
         self.redo_stack = []
@@ -117,6 +132,18 @@ class GameState:
         self.solvable = None
 
     def assess_solvability(self) -> Optional[bool]:
+        """
+        Decide whether the current path can still reach a complete tour.
+
+        The method uses a layered strategy:
+        - trivial/known-impossible cases first
+        - cache lookup for previously solved starting lines
+        - fast heuristic start solver for fresh boards
+        - exact backtracking solver as the final fallback
+
+        It also stores the best remaining path found so UI actions such as
+        Suggest and Auto Finish can reuse the result without recomputing.
+        """
         if not self.current_move:
             self.solvable = None
             self.last_analysis_path = []
@@ -160,6 +187,7 @@ class GameState:
         return self.solvable
 
     def analyze(self) -> Optional[List[Position]]:
+        """Return the remaining solution path, if one exists from this state."""
         solvable = self.assess_solvability()
         if solvable is None:
             return None
@@ -168,6 +196,7 @@ class GameState:
         return list(self.last_analysis_path)
 
     def suggest(self) -> Optional[Position]:
+        """Return the next recommended move from the current solvable path."""
         if self.solvable is None:
             self.assess_solvability()
         solution = self.last_analysis_path
@@ -175,10 +204,12 @@ class GameState:
         return self.suggested_move
 
     def format_position(self, move: Position) -> str:
+        """Format a zero-based internal coordinate for display to the player."""
         row, col = move
         return f"({row + 1}, {col + 1})"
 
     def format_move_list(self, moves: List[Position]) -> str:
+        """Format a sequence of moves as a numbered human-readable list."""
         return "\n".join(
             f"{index + 1}. {self.format_position(move)}"
             for index, move in enumerate(moves)

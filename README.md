@@ -2,6 +2,10 @@
 
 A desktop Knight's Tour game built with Python and Tkinter.
 
+## Screenshot
+
+![Knight's Tour Screenshot](assets/knights-tour-screenshot.jpeg)
+
 The game lets you:
 - Choose a board size from `5x5` to `10x10`
 - Start from any square
